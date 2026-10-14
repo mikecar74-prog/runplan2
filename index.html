@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RUNPLAN - Simple Run Scheduler</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #0a0a0b; color: #f3f4f6; font-family: 'Inter', sans-serif; }
+        input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 md:p-8">
+
+    <header class="max-w-3xl mx-auto w-full mb-8 border-b border-zinc-800 pb-4">
+        <h1 class="text-2xl font-bold tracking-wider text-orange-500 uppercase">RUNPLAN</h1>
+        <p class="text-xs text-zinc-400">Simple Run & Segment Scheduler</p>
+    </header>
+
+    <main class="max-w-3xl mx-auto w-full grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- INPUTS -->
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-5">
+            <h2 class="text-md font-bold text-white border-b border-zinc-800 pb-3">Run Parameters</h2>
+
+            <form id="runForm" class="space-y-4" onsubmit="event.preventDefault(); calculatePlan();">
+                
+                <!-- Total Miles -->
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-400 uppercase mb-1">Total Distance (Miles)</label>
+                    <input type="number" id="totalMiles" step="0.1" min="0.1" value="6" required
+                        class="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-xl px-4 py-2.5 text-white font-mono outline-none">
+                </div>
+
+                <!-- Default Pace per Mile -->
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-400 uppercase mb-1">Default Pace per Mile</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="relative">
+                            <input type="number" id="paceMin" min="0" max="59" value="8" required placeholder="Min"
+                                class="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-xl px-3 py-2.5 text-white font-mono text-center outline-none">
+                            <span class="absolute right-3 top-3 text-xs text-zinc-500">MIN</span>
+                        </div>
+                        <div class="relative">
+                            <input type="number" id="paceSec" min="0" max="59" value="30" required placeholder="Sec"
+                                class="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-xl px-3 py-2.5 text-white font-mono text-center outline-none">
+                            <span class="absolute right-3 top-3 text-xs text-zinc-500">SEC</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Segments Section -->
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-xs font-semibold text-zinc-400 uppercase">Run Segments (Optional)</label>
+                        <button type="button" onclick="addSegment()" class="text-xs text-orange-500 hover:underline font-semibold">+ Add Segment</button>
+                    </div>
+                    <div id="segmentsContainer" class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        <!-- Dynamic segments inserted here -->
+                    </div>
+                </div>
+
+                <!-- Desired Finish Time -->
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-400 uppercase mb-1">Target Finish Time</label>
+                    <input type="time" id="finishTime" value="09:00" required
+                        class="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-xl px-4 py-2.5 text-white font-mono outline-none">
+                </div>
+
+                <!-- Prep Time -->
+                <div>
+                    <label class="block text-xs font-semibold text-zinc-400 uppercase mb-1">Prep Time Before Run (Minutes)</label>
+                    <input type="number" id="prepMinutes" min="0" max="300" value="45" required
+                        class="w-full bg-zinc-950 border border-zinc-800 focus:border-orange-500 rounded-xl px-4 py-2.5 text-white font-mono outline-none">
+                </div>
+
+                <button type="submit"
+                    class="w-full bg-orange-500 hover:bg-orange-600 text-black font-bold py-3 rounded-xl transition uppercase tracking-wider text-sm mt-2">
+                    Generate Plan
+                </button>
+            </form>
+        </div>
+
+        <!-- RESULTS / TIMELINE -->
+        <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between">
+            <div>
+                <h2 class="text-md font-bold text-white border-b border-zinc-800 pb-3 mb-4">Execution Schedule</h2>
+                
+                <div class="grid grid-cols-3 gap-2 mb-6 text-center">
+                    <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+                        <span class="text-[10px] text-zinc-500 uppercase block font-semibold">Distance</span>
+                        <span id="statDistance" class="font-mono font-bold text-orange-500 text-lg">0 mi</span>
+                    </div>
+                    <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+                        <span class="text-[10px] text-zinc-500 uppercase block font-semibold">Avg Pace</span>
+                        <span id="statPace" class="font-mono font-bold text-white text-lg">0:00</span>
+                    </div>
+                    <div class="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
+                        <span class="text-[10px] text-zinc-500 uppercase block font-semibold">Duration</span>
+                        <span id="statDuration" class="font-mono font-bold text-white text-lg">0m</span>
+                    </div>
+                </div>
+
+                <div id="timelineContainer" class="border-l-2 border-zinc-800 ml-3 space-y-6 py-2 pl-4">
+                    <!-- Timeline populated dynamically -->
+                </div>
+            </div>
+
+            <button onclick="window.print()" class="mt-6 w-full py-2 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-xs font-semibold text-zinc-300 transition">
+                Print Schedule
+            </button>
+        </div>
+
+    </main>
+
+    <footer class="max-w-3xl mx-auto w-full mt-8 text-center text-xs text-zinc-600">
+        <p>RUNPLAN — Simple & Fast</p>
+    </footer>
+
+    <script>
+        function addSegment(miles = 1, min = 8, sec = 30, label = "Segment") {
+            const container = document.getElementById('segmentsContainer');
+            const div = document.createElement('div');
+            div.className = "flex items-center gap-2 bg-zinc-950 p-2 rounded-xl border border-zinc-800 segment-row";
+            div.innerHTML = `
+                <input type="text" placeholder="Label (e.g. Warmup)" value="${label}" class="seg-label w-1/3 bg-transparent text-xs text-white border-b border-zinc-800 outline-none px-1">
+                <input type="number" step="0.1" min="0.1" placeholder="Miles" value="${miles}" class="seg-miles w-1/5 bg-zinc-900 text-xs text-white font-mono p-1 rounded border border-zinc-800 text-center outline-none">
+                <input type="number" min="0" max="59" placeholder="Min" value="${min}" class="seg-min w-1/6 bg-zinc-900 text-xs text-white font-mono p-1 rounded border border-zinc-800 text-center outline-none">
+                <input type="number" min="0" max="59" placeholder="Sec" value="${sec}" class="seg-sec w-1/6 bg-zinc-900 text-xs text-white font-mono p-1 rounded border border-zinc-800 text-center outline-none">
+                <button type="button" onclick="this.parentElement.remove(); calculatePlan();" class="text-red-400 hover:text-red-300 px-1 text-xs font-bold">×</button>
+            `;
+            container.appendChild(div);
+            calculatePlan();
+        }
+
+        function formatTime(date) {
+            let hours = date.getHours();
+            let minutes = date.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            return `${hours}:${minutes} ${ampm}`;
+        }
+
+        function calculatePlan() {
+            const totalMilesInput = parseFloat(document.getElementById('totalMiles').value) || 0;
+            const defaultMin = parseInt(document.getElementById('paceMin').value) || 0;
+            const defaultSec = parseInt(document.getElementById('paceSec').value) || 0;
+            const finishTimeStr = document.getElementById('finishTime').value;
+            const prepMinutes = parseInt(document.getElementById('prepMinutes').value) || 0;
+
+            // Gather Segments if any
+            let segmentRows = document.querySelectorAll('.segment-row');
+            let segments = [];
+            let segmentTotalMiles = 0;
+            let totalRunMinutes = 0;
+
+            segmentRows.forEach(row => {
+                let label = row.querySelector('.seg-label').value || 'Segment';
+                let miles = parseFloat(row.querySelector('.seg-miles').value) || 0;
+                let min = parseInt(row.querySelector('.seg-min').value) || 0;
+                let sec = parseInt(row.querySelector('.seg-sec').value) || 0;
+                let paceDecimal = min + (sec / 60);
+                
+                segments.push({ label, miles, paceDecimal, min, sec });
+                segmentTotalMiles += miles;
+                totalRunMinutes += miles * paceDecimal;
+            });
+
+            // If segments don't cover everything or no segments exist, fill with default pace remainder
+            let effectiveMiles = totalMilesInput;
+            let defaultPaceDecimal = defaultMin + (defaultSec / 60);
+
+            if (segments.length === 0) {
+                totalRunMinutes = totalMilesInput * defaultPaceDecimal;
+            } else if (segmentTotalMiles < totalMilesInput) {
+                let remainingMiles = totalMilesInput - segmentTotalMiles;
+                segments.push({
+                    label: 'Main Run / Steady',
+                    miles: remainingMiles,
+                    paceDecimal: defaultPaceDecimal,
+                    min: defaultMin,
+                    sec: defaultSec
+                });
+                totalRunMinutes += remainingMiles * defaultPaceDecimal;
+            }
+
+            // Calculate dates
+            const now = new Date();
+            const [fHours, fMins] = finishTimeStr.split(':').map(Number);
+            let finishDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), fHours, fMins, 0);
+            
+            let startRunDate = new Date(finishDate.getTime() - totalRunMinutes * 60000);
+            let prepDate = new Date(startRunDate.getTime() - prepMinutes * 60000);
+
+            // Update stats view
+            document.getElementById('statDistance').innerText = `${effectiveMiles.toFixed(1)} mi`;
+            document.getElementById('statPace').innerText = `${defaultMin}:${defaultSec < 10 ? '0' : ''}${defaultSec}`;
+            let runHrs = Math.floor(totalRunMinutes / 60);
+            let runMins = Math.round(totalRunMinutes % 60);
+            document.getElementById('statDuration').innerText = runHrs > 0 ? `${runHrs}h ${runMins}m` : `${runMins}m`;
+
+            // Build Timeline
+            const timelineContainer = document.getElementById('timelineContainer');
+            timelineContainer.innerHTML = '';
+
+            // Prep Node
+            timelineContainer.innerHTML += `
+                <div class="relative">
+                    <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-indigo-500 border-2 border-zinc-900"></div>
+                    <div class="text-xs font-mono text-zinc-400">${formatTime(prepDate)}</div>
+                    <div class="font-bold text-white text-sm">Prep & Wake Up (${prepMinutes}m)</div>
+                </div>
+            `;
+
+            // Start Run Node
+            timelineContainer.innerHTML += `
+                <div class="relative">
+                    <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-orange-500 border-2 border-zinc-900"></div>
+                    <div class="text-xs font-mono text-orange-400 font-semibold">${formatTime(startRunDate)}</div>
+                    <div class="font-bold text-white text-sm">Start Run</div>
+                </div>
+            `;
+
+            // Segment Nodes
+            let currentTime = new Date(startRunDate.getTime());
+            if (segments.length > 0) {
+                segments.forEach(seg => {
+                    let segDuration = seg.miles * seg.paceDecimal;
+                    let segEndTime = new Date(currentTime.getTime() + segDuration * 60000);
+                    timelineContainer.innerHTML += `
+                        <div class="relative">
+                            <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-cyan-500 border-2 border-zinc-900"></div>
+                            <div class="text-xs font-mono text-zinc-400">${formatTime(currentTime)} - ${formatTime(segEndTime)}</div>
+                            <div class="font-bold text-white text-sm">${seg.label} (${seg.miles} mi @ ${seg.min}:${seg.sec < 10 ? '0':''}${seg.sec}/mi)</div>
+                        </div>
+                    `;
+                    currentTime = segEndTime;
+                });
+            }
+
+            // Finish Node
+            timelineContainer.innerHTML += `
+                <div class="relative">
+                    <div class="absolute -left-[21px] top-1 w-3 h-3 rounded-full bg-emerald-500 border-2 border-zinc-900"></div>
+                    <div class="text-xs font-mono text-emerald-400 font-semibold">${formatTime(finishDate)}</div>
+                    <div class="font-bold text-white text-sm">Finish Run & Recover</div>
+                </div>
+            `;
+        }
+
+        window.onload = () => {
+            calculatePlan();
+        };
+    </script>
+</body>
+</html>
